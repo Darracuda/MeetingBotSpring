@@ -1,6 +1,9 @@
 package qiwi.zoombot.spring.zoomApi.infrastructure
 
 import okhttp3.*
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
+import qiwi.zoombot.spring.ZoomApplication
 import java.io.File
 import java.io.IOException
 import java.util.regex.Pattern
@@ -135,7 +138,8 @@ open class ApiClient(val baseUrl: String) {
 
         val realRequest = request.build()
         val response = client.newCall(realRequest).execute()
-
+        val logger: Logger = LoggerFactory.getLogger(ZoomApplication::class.java)
+        logger.info(response.toString())
         // TODO: handle specific mapping types. e.g. Map<int, Class<?>>
         when {
             response.isRedirect -> return Redirection(

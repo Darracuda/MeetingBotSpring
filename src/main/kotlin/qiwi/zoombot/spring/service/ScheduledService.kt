@@ -62,15 +62,15 @@ class ScheduledService(
             try {
                 val response = apiInstance.createMeeting(zoomToken, zoomLogin, request)
                 logger.info("Meeting created")
-                logger.info("start time: ${toLocal(response.starttime)}")
+                logger.info("start time: ${toLocal(response.start_time)}")
                 logger.info("Response: $response")
 
                 val zoomMeeting = ZoomMeeting(
                     icsMeeting.subject,
                     icsMeeting.description,
-                    response.starttime,
+                    response.start_time,
                     icsMeeting.duration,
-                    response.joinurl,
+                    response.join_url,
                     icsMeeting.attendees,
                 )
 

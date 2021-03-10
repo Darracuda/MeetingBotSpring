@@ -3,15 +3,15 @@ package qiwi.zoombot.spring.zoomApi.models
 import java.time.Instant
 
 data class CreateMeetingResponse (
-    var hostid: String,
+    var host_id: String,
     var id: String,
     var uuid: String,
-    var starttime: Instant,
-    var createdat: Instant,
-    var starturl: String,
-    var joinurl: String,
+    var start_time: Instant,
+    var created_at: Instant,
+    var start_url: String,
+    var join_url: String,
     var encrypted_password: String,
-    var pstnpassword: String,
-    var hostemail: String,
+    var pstn_password: String,
+    var host_email: String,
 )
 
