@@ -99,6 +99,12 @@
 			<artifactId>okio</artifactId>
 			<version>1.16.0</version>
 		</dependency>
+		<!-- https://mvnrepository.com/artifact/org.threeten/threeten-extra -->
+		<dependency>
+			<groupId>org.threeten</groupId>
+			<artifactId>threeten-extra</artifactId>
+			<version>1.6.0</version>
+		</dependency>
 	</dependencies>
 
 	<build>
