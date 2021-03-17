@@ -80,7 +80,7 @@ class MailboxManager(
         val emailAddressesToCC = emptyArray<String>()
 
         val emailSubject = "Невозможно создать встречу"
-        val emailText = "К сожалению, это время уже занято. Попробуйте создать встречу на другое время"
+        val emailText = "К сожалению, это время недоступно. Попробуйте создать встречу на другое время"
 
         val session = getSmtpSession(host, port)
         val msg: Message = MimeMessage(session)

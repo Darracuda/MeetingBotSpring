@@ -37,7 +37,10 @@ class ScheduledService(
         val icsMeetings = icsMeetingManager.getMeetingsFromMailbox()
         logger.info("Meeting download complete")
         for (icsMeeting in icsMeetings) {
-            if(icsMeeting.startTime < Instant.now()) break
+            if(icsMeeting.startTime < Instant.now()){
+                mailboxManager.sendRejectMessage(icsMeeting.attendees.toTypedArray())
+                break
+            }
             val apiInstance = MeetingsApi()
             val meetingSettings = CreateMeetingRequest.MeetingSettings(
                 hostvideo = zoomMeetingSettings.hostvideo,
