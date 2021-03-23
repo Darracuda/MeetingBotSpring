@@ -44,7 +44,7 @@ class ScheduledService(
         logger.info("Meeting download complete")
         for (icsMeeting in icsMeetings) {
             if(icsMeeting.startTime < Instant.now()){
-                mailboxManager.sendRejectMessage(icsMeeting.attendees.toTypedArray())
+                mailboxManager.sendRejectMessage(icsMeeting.organizer)
                 break
             }
             val apiInstance = MeetingsApi()
@@ -73,6 +73,7 @@ class ScheduledService(
             try {
                 var meetingCreated = false
                 for (zoomAccount in zoomAccounts) {
+                    if(meetingCreated) break
                     val meetingListResponse = apiInstance.getMeetingList(
                         zoomAccount.token, zoomAccount.login, "upcoming", 30, 1
                     )
@@ -100,7 +101,7 @@ class ScheduledService(
                     meetingCreated = true
                 }
                 if(!meetingCreated)
-                    mailboxManager.sendRejectMessage(icsMeeting.attendees.toTypedArray())
+                    mailboxManager.sendRejectMessage(icsMeeting.organizer)
             } catch (e: ClientException) {
                 logger.error("4xx response calling MeetingsApi#meetingCreate", e)
             } catch (e: ServerException) {

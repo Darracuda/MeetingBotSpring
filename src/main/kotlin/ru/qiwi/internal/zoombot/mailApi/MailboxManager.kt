@@ -1,6 +1,7 @@
 package ru.qiwi.internal.zoombot.mailApi
 
 import com.sun.mail.smtp.SMTPTransport
+import net.fortuna.ical4j.model.property.Organizer
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
@@ -23,16 +24,16 @@ class MailboxManager(
 ){
     private val logger: Logger = LoggerFactory.getLogger(ZoomApplication::class.java)
 
-    fun createAcceptMessage(session: Session, zoomMeeting: ZoomMeeting): Message{
-        val msg: Message = MimeMessage(session)
+    fun sendAcceptMessage(zoomMeeting: ZoomMeeting){
         val emailAddressFrom = meetingMailMessageSettings.from
         val emailAddressesToCC = emptyArray<String>()
-
         val emailSubject = zoomMeeting.topic
         val emailText = zoomMeeting.agenda
         val emailToAddresses = zoomMeeting.attendees?.toTypedArray()
-
         val joinUrl = zoomMeeting.joinUrl
+
+        val session = getSmtpSession()
+        val msg: Message = MimeMessage(session)
 
         msg.setFrom(InternetAddress(emailAddressFrom))
         msg.setRecipients(Message.RecipientType.TO, emailToAddresses?.map { a -> InternetAddress(a) }?.toTypedArray())
@@ -54,61 +55,34 @@ class MailboxManager(
         sb.append("Начало встречи: ${zoomMeeting.startTime}")
         msg.setText(sb.toString())
         msg.sentDate = Date()
-        return msg
+        sendMessage(msg, session)
     }
 
-    fun sendAcceptMessage(zoomMeeting: ZoomMeeting){
-        val host = smtpServiceSettings.host
-        val port = smtpServiceSettings.port
-        val login = smtpServiceSettings.login
-        val password = smtpServiceSettings.password
-
-        val session = getSmtpSession(host, port)
-        val msg = createAcceptMessage(session, zoomMeeting)
-
-        try {
-            val t = session.getTransport("smtp") as SMTPTransport
-            t.connect(host, login, password)
-            t.sendMessage(msg, msg.allRecipients)
-            logger.info("Message sent - Response: " + t.lastServerResponse)
-            t.close()
-        } catch (e: MessagingException) {
-            logger.error("Exception:", e)
-        }
-    }
-
-    fun createRejectMessage(session: Session, emailToAddresses: Array<String>): Message{
+    fun sendRejectMessage(organizer: String){
         val emailAddressFrom = meetingMailMessageSettings.from
-        val emailAddressesToCC = emptyArray<String>()
-
         val emailSubject = "Невозможно создать встречу"
         val emailText = "К сожалению, это время недоступно. Попробуйте создать встречу на другое время"
+
+        val session = getSmtpSession()
         val msg: Message = MimeMessage(session)
         msg.setFrom(InternetAddress(emailAddressFrom))
-        msg.setRecipients(Message.RecipientType.TO, emailToAddresses.map { a -> InternetAddress(a) }.toTypedArray())
-        msg.setRecipients(
-            Message.RecipientType.CC,
-            emailAddressesToCC.map { a -> InternetAddress(a) }.toTypedArray()
-        )
+        msg.setRecipient(Message.RecipientType.TO, InternetAddress(organizer))
         msg.subject = emailSubject
         val sb = StringBuilder()
         sb.append("$emailText\n")
         msg.setText(sb.toString())
         msg.sentDate = Date()
-        return msg
+        sendMessage(msg, session)
     }
 
-    fun sendRejectMessage(emailToAddresses: Array<String>){
+    fun sendMessage(msg: Message, session: Session){
         val host = smtpServiceSettings.host
-        val port = smtpServiceSettings.port
         val login = smtpServiceSettings.login
         val password = smtpServiceSettings.password
 
-        val session = getSmtpSession(host, port)
-        val msg = createRejectMessage(session, emailToAddresses)
-
         try {
             val t = session.getTransport("smtp") as SMTPTransport
+            session.properties
             t.connect(host, login, password)
             t.sendMessage(msg, msg.allRecipients)
             logger.info("Message sent - Response: " + t.lastServerResponse)
@@ -119,13 +93,11 @@ class MailboxManager(
     }
 
     fun receiveMessages(): Array<Message> {
-        val host = imapServiceSettings.host
-        val port = imapServiceSettings.port
         val login = imapServiceSettings.login
         val password = imapServiceSettings.password
 
         logger.info("Creating mail session...")
-        val session = getImapSession(host, port)
+        val session = getImapSession()
         logger.info("Receiving mail store...")
         val store = session.getStore("imap")
         logger.info("Connecting to mail store...")
@@ -142,24 +114,24 @@ class MailboxManager(
         return messages
     }
 
-    private fun getSmtpSession(host: String?, port: String?): Session {
+    private fun getSmtpSession(): Session {
         val properties = Properties()
-        properties["mail.smtp.host"] = host
+        properties["mail.smtp.host"] = smtpServiceSettings.host
         properties["mail.smtp.auth"] = "true"
-        properties["mail.smtp.port"] = port
+        properties["mail.smtp.port"] = smtpServiceSettings.port
         properties["mail.smtp.starttls.enable"] = "true"
         return Session.getInstance(properties)
     }
 
-    private fun getImapSession(host: String?, port: String?): Session {
+    private fun getImapSession(): Session {
         val properties = Properties()
         // server setting
-        properties["mail.imap.host"] = host
-        properties["mail.imap.port"] = port
+        properties["mail.imap.host"] = imapServiceSettings.host
+        properties["mail.imap.port"] = imapServiceSettings.port
         // SSL setting
         properties["mail.imap.socketFactory.class"] = "javax.net.ssl.SSLSocketFactory"
         properties["mail.imap.socketFactory.fallback"] = "false"
-        properties["mail.imap.socketFactory.port"] = port
+        properties["mail.imap.socketFactory.port"] = imapServiceSettings.port
         properties["mail.mime.base64.ignoreerrors"] = "true"
         properties["mail.imap.partialfetch"] = "true"
         properties["mail.smtp.ssl.enable"] = "true"
