@@ -11,6 +11,7 @@ import ru.qiwi.internal.zoombot.mailApi.MailboxManager
 import ru.qiwi.internal.zoombot.utils.ifOverlaps
 import ru.qiwi.internal.zoombot.utils.toLocal
 import ru.qiwi.internal.zoombot.zoomApi.MeetingsApi
+import ru.qiwi.internal.zoombot.zoomApi.ZoomAccount
 import ru.qiwi.internal.zoombot.zoomApi.ZoomMeeting
 import ru.qiwi.internal.zoombot.zoomApi.infrastructure.ClientException
 import ru.qiwi.internal.zoombot.zoomApi.infrastructure.ServerException
@@ -29,9 +30,14 @@ class ScheduledService(
         val logger: Logger = LoggerFactory.getLogger(ZoomApplication::class.java)
         logger.info("Trying to fetch new meetings...")
 
-        val zoomLogin = zoomMeetingSettings.login
+        val zoomLogin1 = zoomMeetingSettings.login1
+        val zoomToken1 = zoomMeetingSettings.token1
+        val zoomLogin2 = zoomMeetingSettings.login2
+        val zoomToken2 = zoomMeetingSettings.token2
+        val zoomAccount1 = ZoomAccount(zoomLogin1, zoomToken1)
+        val zoomAccount2 = ZoomAccount(zoomLogin2, zoomToken2)
+        val zoomAccounts = listOf(zoomAccount1,zoomAccount2)
         val zoomPassword = zoomMeetingSettings.password
-        val zoomToken = zoomMeetingSettings.token
 
         logger.info("Starting meetings download")
         val icsMeetings = icsMeetingManager.getMeetingsFromMailbox()
@@ -45,7 +51,7 @@ class ScheduledService(
             val meetingSettings = CreateMeetingRequest.MeetingSettings(
                 hostvideo = zoomMeetingSettings.hostvideo,
                 participantvideo = zoomMeetingSettings.participantvideo,
-                cnmeeting = zoomMeetingSettings.participantvideo,
+                cnmeeting = zoomMeetingSettings.cnmeeting,
                 inmeeting = zoomMeetingSettings.inmeeting,
                 joinbeforehost = zoomMeetingSettings.joinbeforehost,
                 muteuponentry = zoomMeetingSettings.muteuponentry,
@@ -65,30 +71,36 @@ class ScheduledService(
                 settings = meetingSettings,
             )
             try {
-                val meetingListResponse = apiInstance.getMeetingList(zoomToken, zoomLogin, "upcoming", 30, 1)
-                logger.info(meetingListResponse.toString())
-                val existingMeetings = meetingListResponse.meetings
-                val overlaps = ifOverlaps(existingMeetings, request)
-                if(overlaps) {
-                    logger.info("This time is already reserved")
-                    mailboxManager.sendRejectMessage(icsMeeting.attendees.toTypedArray())
-                    break
+                var meetingCreated = false
+                for (zoomAccount in zoomAccounts) {
+                    val meetingListResponse = apiInstance.getMeetingList(
+                        zoomAccount.token, zoomAccount.login, "upcoming", 30, 1
+                    )
+                    logger.info(meetingListResponse.toString())
+                    val existingMeetings = meetingListResponse.meetings
+                    val overlaps = ifOverlaps(existingMeetings, request)
+                    if (overlaps) {
+                        logger.info("This time is already reserved")
+                        continue
+                    }
+                    val response = apiInstance.createMeeting(zoomAccount.token, zoomAccount.login, request)
+                    logger.info("Meeting created")
+                    logger.info("start time: ${toLocal(response.startTime)}")
+                    logger.info("Response: $response")
+
+                    val zoomMeeting = ZoomMeeting(
+                        icsMeeting.subject,
+                        icsMeeting.description,
+                        response.startTime,
+                        icsMeeting.duration,
+                        response.joinUrl,
+                        icsMeeting.attendees,
+                    )
+                    mailboxManager.sendAcceptMessage(zoomMeeting)
+                    meetingCreated = true
                 }
-                val response = apiInstance.createMeeting(zoomToken, zoomLogin, request)
-                logger.info("Meeting created")
-                logger.info("start time: ${toLocal(response.startTime)}")
-                logger.info("Response: $response")
-
-                val zoomMeeting = ZoomMeeting(
-                    icsMeeting.subject,
-                    icsMeeting.description,
-                    response.startTime,
-                    icsMeeting.duration,
-                    response.joinUrl,
-                    icsMeeting.attendees,
-                )
-
-                mailboxManager.sendAcceptMessage(zoomMeeting)
+                if(!meetingCreated)
+                    mailboxManager.sendRejectMessage(icsMeeting.attendees.toTypedArray())
             } catch (e: ClientException) {
                 logger.error("4xx response calling MeetingsApi#meetingCreate", e)
             } catch (e: ServerException) {

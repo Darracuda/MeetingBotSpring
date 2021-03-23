@@ -23,11 +23,8 @@ class MailboxManager(
 ){
     private val logger: Logger = LoggerFactory.getLogger(ZoomApplication::class.java)
 
-    fun sendAcceptMessage(zoomMeeting: ZoomMeeting){
-        val host = smtpServiceSettings.host
-        val port = smtpServiceSettings.port
-        val login = smtpServiceSettings.login
-        val password = smtpServiceSettings.password
+    fun createAcceptMessage(session: Session, zoomMeeting: ZoomMeeting): Message{
+        val msg: Message = MimeMessage(session)
         val emailAddressFrom = meetingMailMessageSettings.from
         val emailAddressesToCC = emptyArray<String>()
 
@@ -37,38 +34,68 @@ class MailboxManager(
 
         val joinUrl = zoomMeeting.joinUrl
 
+        msg.setFrom(InternetAddress(emailAddressFrom))
+        msg.setRecipients(Message.RecipientType.TO, emailToAddresses?.map { a -> InternetAddress(a) }?.toTypedArray())
+        msg.setRecipients(
+            Message.RecipientType.CC,
+            emailAddressesToCC.map { a -> InternetAddress(a) }.toTypedArray()
+        )
+        if (emailSubject!=null)
+            msg.subject = emailSubject
+        val sb = StringBuilder()
+        if (emailText!=null)
+            sb.append("$emailText\n")
+        sb.append("Встреча успешно создана \n")
+        sb.append("Подключайтесь: $joinUrl \n")
+        if(zoomMeeting.topic!=null)
+            sb.append("Тема встречи: ${zoomMeeting.topic} \n")
+        if(zoomMeeting.agenda!=null)
+            sb.append("Описание встречи: ${zoomMeeting.agenda} \n")
+        sb.append("Начало встречи: ${zoomMeeting.startTime}")
+        msg.setText(sb.toString())
+        msg.sentDate = Date()
+        return msg
+    }
+
+    fun sendAcceptMessage(zoomMeeting: ZoomMeeting){
+        val host = smtpServiceSettings.host
+        val port = smtpServiceSettings.port
+        val login = smtpServiceSettings.login
+        val password = smtpServiceSettings.password
+
         val session = getSmtpSession(host, port)
-        val msg: Message = MimeMessage(session)
+        val msg = createAcceptMessage(session, zoomMeeting)
 
         try {
-            msg.setFrom(InternetAddress(emailAddressFrom))
-            msg.setRecipients(Message.RecipientType.TO, emailToAddresses?.map { a -> InternetAddress(a) }?.toTypedArray())
-            msg.setRecipients(
-                Message.RecipientType.CC,
-                emailAddressesToCC.map { a -> InternetAddress(a) }.toTypedArray()
-            )
-            if (emailSubject!=null)
-                msg.subject = emailSubject
-            val sb = StringBuilder()
-            if (emailText!=null)
-                sb.append("$emailText\n")
-            sb.append("Встреча успешно создана \n")
-            sb.append("Подключайтесь: $joinUrl \n")
-            if(zoomMeeting.topic!=null)
-                sb.append("Тема встречи: ${zoomMeeting.topic} \n")
-            if(zoomMeeting.agenda!=null)
-                sb.append("Описание встречи: ${zoomMeeting.agenda} \n")
-            sb.append("Начало встречи: ${zoomMeeting.startTime}")
-            msg.setText(sb.toString())
-            msg.sentDate = Date()
             val t = session.getTransport("smtp") as SMTPTransport
             t.connect(host, login, password)
             t.sendMessage(msg, msg.allRecipients)
             logger.info("Message sent - Response: " + t.lastServerResponse)
             t.close()
         } catch (e: MessagingException) {
-            e.printStackTrace()
+            logger.error("Exception:", e)
         }
+    }
+
+    fun createRejectMessage(session: Session, emailToAddresses: Array<String>): Message{
+        val emailAddressFrom = meetingMailMessageSettings.from
+        val emailAddressesToCC = emptyArray<String>()
+
+        val emailSubject = "Невозможно создать встречу"
+        val emailText = "К сожалению, это время недоступно. Попробуйте создать встречу на другое время"
+        val msg: Message = MimeMessage(session)
+        msg.setFrom(InternetAddress(emailAddressFrom))
+        msg.setRecipients(Message.RecipientType.TO, emailToAddresses.map { a -> InternetAddress(a) }.toTypedArray())
+        msg.setRecipients(
+            Message.RecipientType.CC,
+            emailAddressesToCC.map { a -> InternetAddress(a) }.toTypedArray()
+        )
+        msg.subject = emailSubject
+        val sb = StringBuilder()
+        sb.append("$emailText\n")
+        msg.setText(sb.toString())
+        msg.sentDate = Date()
+        return msg
     }
 
     fun sendRejectMessage(emailToAddresses: Array<String>){
@@ -76,34 +103,18 @@ class MailboxManager(
         val port = smtpServiceSettings.port
         val login = smtpServiceSettings.login
         val password = smtpServiceSettings.password
-        val emailAddressFrom = meetingMailMessageSettings.from
-        val emailAddressesToCC = emptyArray<String>()
-
-        val emailSubject = "Невозможно создать встречу"
-        val emailText = "К сожалению, это время недоступно. Попробуйте создать встречу на другое время"
 
         val session = getSmtpSession(host, port)
-        val msg: Message = MimeMessage(session)
+        val msg = createRejectMessage(session, emailToAddresses)
 
         try {
-            msg.setFrom(InternetAddress(emailAddressFrom))
-            msg.setRecipients(Message.RecipientType.TO, emailToAddresses.map { a -> InternetAddress(a) }.toTypedArray())
-            msg.setRecipients(
-                Message.RecipientType.CC,
-                emailAddressesToCC.map { a -> InternetAddress(a) }.toTypedArray()
-            )
-            msg.subject = emailSubject
-            val sb = StringBuilder()
-            sb.append("$emailText\n")
-            msg.setText(sb.toString())
-            msg.sentDate = Date()
             val t = session.getTransport("smtp") as SMTPTransport
             t.connect(host, login, password)
             t.sendMessage(msg, msg.allRecipients)
             logger.info("Message sent - Response: " + t.lastServerResponse)
             t.close()
         } catch (e: MessagingException) {
-            e.printStackTrace()
+            logger.error("Exception: ", e)
         }
     }
 

@@ -7,9 +7,11 @@ import ru.qiwi.internal.zoombot.zoomApi.models.CreateMeetingRequest
 @Configuration
 @ConfigurationProperties(prefix = "settings.zoommeeting")
 class ZoomMeetingSettings{
-    lateinit var login: String
+    lateinit var login1: String
+    lateinit var token1: String
+    lateinit var login2: String
+    lateinit var token2: String
     lateinit var password: String
-    lateinit var token: String
     var hostvideo: Boolean = false
     var participantvideo: Boolean = false
     var cnmeeting: Boolean = false
